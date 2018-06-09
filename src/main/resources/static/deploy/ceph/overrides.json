@@ -1,0 +1,13 @@
+{
+	"network": {
+	   "public": "{0}/24",
+	   "cluster": "{0}/24"
+	},
+	"osd_devices": [
+	],
+	"storageclass": {
+	   "name": "ceph-rbd",
+	   "pool": "rbd",
+	   "user_id": "admin"
+	}
+}
