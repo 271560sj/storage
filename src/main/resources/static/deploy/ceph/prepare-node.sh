@@ -13,6 +13,8 @@ function prepare(){
    if [ -z "${rbd}" ]; then
        modprobe rbd
    fi
+
+   rm -rf /var/lib/ceph-helm/
 }
 
 function loadImage(){

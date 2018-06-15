@@ -2,10 +2,7 @@ package io.xlauncher.storage.utils;
 
 
 import org.apache.commons.lang.StringUtils;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.log4j.Logger;
-import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -76,33 +73,15 @@ public class ReadPropertiesUtils {
     }
 
     /**
-     * 读取配置文件的内容
-     * @param key 根据key值读取配置文件
-     * @param value 设置默认值，如果key不存在，或者读取的为空值，则返回该值
-     * @return
-     */
-    public String getProperties(String key, String value) {
-        //判断key的值是否存在
-        if (StringUtils.isBlank(properties.getProperty(key))) {
-            return value;
-        }
-
-        return properties.getProperty(key);
-    }
-
-    /**
      * 读取配置文件内容
      * @param key 获取内容的key
-     * @param value 默认值
      * @param values 需要替换的值
      * @return
      */
-    public String getProperties(String key, String value, String... values) {
-        //判断key的值是否存在
+    public String getProperties(String key, String... values) {
         if (StringUtils.isBlank(properties.getProperty(key))) {
-            return value;
+            return null;
         }
-
-        return MessageFormat.format(properties.getProperty(key), values);
+        return MessageFormat.format(properties.getProperty(key),values);
     }
 }

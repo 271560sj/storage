@@ -128,8 +128,10 @@ spec:
                   fieldPath: status.podIP
           command:
             - /start_mon.sh
+            - ceph-rest-api
           ports:
             - containerPort: 6789
+            - containerPort: 5000
           livenessProbe:
               tcpSocket:
                 port: 6789

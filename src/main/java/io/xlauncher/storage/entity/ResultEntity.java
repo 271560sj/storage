@@ -10,7 +10,7 @@ import lombok.Setter;
  */
 @Setter
 @Getter
-public class ResponseEntity {
+public class ResultEntity {
 
     /**
      * 返回结果的code

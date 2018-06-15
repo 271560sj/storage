@@ -50,11 +50,6 @@
 			<artifactId>ganymed-ssh2</artifactId>
 			<version>262</version>
 		</dependency>
-		<!--<dependency>-->
-			<!--<groupId>ch.ethz.ganymed</groupId>-->
-			<!--<artifactId>ganymed-ssh2</artifactId>-->
-			<!--<version>build210</version>-->
-		<!--</dependency>-->
 		<!-- https://mvnrepository.com/artifact/commons-io/commons-io -->
 		<dependency>
 			<groupId>commons-io</groupId>
@@ -89,18 +84,38 @@
 			<version>1.2.17</version>
 		</dependency>
 
-		<!--&lt;!&ndash; https://mvnrepository.com/artifact/org.yaml/snakeyaml &ndash;&gt;-->
-		<!--<dependency>-->
-			<!--<groupId>org.yaml</groupId>-->
-			<!--<artifactId>snakeyaml</artifactId>-->
-			<!--<version>1.21</version>-->
-		<!--</dependency>-->
-
 		<!-- https://mvnrepository.com/artifact/org.apache.commons/commons-compress -->
 		<dependency>
 			<groupId>org.apache.commons</groupId>
 			<artifactId>commons-compress</artifactId>
 			<version>1.17</version>
+		</dependency>
+
+		<!-- https://mvnrepository.com/artifact/mysql/mysql-connector-java -->
+		<dependency>
+			<groupId>mysql</groupId>
+			<artifactId>mysql-connector-java</artifactId>
+			<version>8.0.11</version>
+		</dependency>
+
+		<!-- https://mvnrepository.com/artifact/org.apache.httpcomponents/httpclient -->
+		<dependency>
+			<groupId>org.apache.httpcomponents</groupId>
+			<artifactId>httpclient</artifactId>
+			<version>4.5.5</version>
+		</dependency>
+
+		<!-- https://mvnrepository.com/artifact/org.springframework.boot/spring-boot-starter-data-jpa -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-data-jpa</artifactId>
+			<version>2.0.2.RELEASE</version>
+		</dependency>
+
+		<dependency>
+			<groupId>mysql</groupId>
+			<artifactId>mysql-connector-java</artifactId>
+			<scope>runtime</scope>
 		</dependency>
 
 	</dependencies>

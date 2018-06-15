@@ -40,6 +40,9 @@ function install(){
    #创建rbac
    kubectl create -f ${BASE_DIR}/rbac.yaml
 
+   chmod +x ${BASE_DIR}/ceph/charts/helm-toolkit-0.1.0.tgz
+   chmod +x ${BASE_DIR}/ceph/recreate-pod.sh
+
    #部署ceph
    helm install --namespace ${NAMESPACE} -f ${BASE_DIR}/overrides.json ${BASE_DIR}/ceph/
 }
@@ -86,6 +89,11 @@ function config(){
     kubectl exec -it -n ${NAMESPACE} -c ceph-mon ${mon_name} -- ceph osd crush tunables hammer
 }
 
+#删除部署文件
+function deleteFiles() {
+   rm -rf ${BASE_DIR}
+}
 install
 check
 config
+deleteFiles

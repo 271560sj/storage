@@ -35,7 +35,8 @@ public class ReadFilesUtils {
 
         String yamlStr = "";
         try {
-            InputStream in = ReadFilesUtils.class.getResourceAsStream(properties.getProperties("storage.deploy.file.path","", file));
+            InputStream in = ReadFilesUtils.class.getResourceAsStream(properties.getProperties("storage.deploy.file." +
+                    "path",file));
             InputStreamReader reader = new InputStreamReader(in);
             BufferedReader bufferedReader = new BufferedReader(reader);
             String line;

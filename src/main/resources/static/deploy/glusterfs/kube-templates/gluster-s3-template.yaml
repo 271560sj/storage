@@ -54,6 +54,10 @@ items:
             value: "${S3_USER}"
           - name: S3_PASSWORD
             value: "${S3_PASSWORD}"
+          - name: KUBERNETES_SERVICE_PORT
+            value: "{1}"
+          - name: KUBERNETES_SERVICE_HOST
+            value: {2}
           resources: {}
           volumeMounts:
           - name: gluster-vol1

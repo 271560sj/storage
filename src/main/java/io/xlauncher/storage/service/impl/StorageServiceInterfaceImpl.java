@@ -3,7 +3,7 @@ package io.xlauncher.storage.service.impl;
 import com.alibaba.fastjson.JSONObject;
 import io.xlauncher.storage.dao.StorageDaoInterface;
 import io.xlauncher.storage.entity.HostEntity;
-import io.xlauncher.storage.entity.ResponseEntity;
+import io.xlauncher.storage.entity.ResultEntity;
 import io.xlauncher.storage.entity.VolumeEntity;
 import io.xlauncher.storage.entity.enums.DeployStorageEnum;
 import io.xlauncher.storage.service.StorageServiceInterface;
@@ -16,7 +16,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.io.File;
-import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 import java.util.UUID;
 
@@ -33,10 +33,6 @@ public class StorageServiceInterfaceImpl implements StorageServiceInterface {
     @Autowired
     private StorageDaoInterface storageDao;
 
-    //实例化FTP服务
-//    @Autowired
-//    private FtpUtils ftp;
-
     //获取ssh服务的实例
     @Autowired
     private SshUtils ssh;
@@ -50,12 +46,6 @@ public class StorageServiceInterfaceImpl implements StorageServiceInterface {
     //打包文件操作
     @Autowired
     private TarFileUtils tarFileUtils;
-
-    //获取om1节点的主机IP地址，主机端口，主机用户，主机密码
-    private static String k8sApiIP = "8.16.0.70";//System.getenv("KUBERNETES_NODE_IP");
-    private static Integer k8sApiPort = 30443;//Integer.parseInt(System.getenv("KUBERNETES_NODE_PORT"));
-    private static String k8sApiUser = "root";//System.getenv("KUBERNETES_NODE_USER");
-    private static String k8sApiPassword = "root";//System.getenv("KUBERNETES_NODE_PASSWD");
 
     /**
      * 获取存储卷列表
@@ -79,15 +69,15 @@ public class StorageServiceInterfaceImpl implements StorageServiceInterface {
     public void initStorageNode(List<HostEntity> entities, String domain, String type) throws Exception {
 
         //将主机纳管到k8s集群中，作为存储节点
-        for (HostEntity entity : entities){
-            storageDao.addStorageNode(entity,domain);
-        }
+        entities.parallelStream().forEach(x -> {
+            ssh.execute("curl -ssl -k https://8.16.0.52:30402/joinSlaveNode.sh | sh -s  8.16.0.52:30402 " +
+                    "54ab26.8b8abe7132019134 8.16.0.52:30443 8.16.0.52:30400 " + domain.toLowerCase(),x);
+        });
 
         //根据部署的存储系统不同,生成不同的部署文件，拷贝不同的镜像文件到存储节点中
         if (properties.getProperties("storage.type.gfs").equals(type)){
             initGfsSystem(entities, domain);
         }else if (properties.getProperties("storage.type.ceph").equals(type)){
-            //todo 部署ceph
             initCephSystem(entities,domain);
         }
     }
@@ -99,18 +89,16 @@ public class StorageServiceInterfaceImpl implements StorageServiceInterface {
      * @throws Exception
      */
     @Override
-    public ResponseEntity checkInitStorage(String domain) throws Exception {
+    public ResultEntity checkInitStorage(String domain) throws Exception {
 
         //设置k8som节点的信息
-        HostEntity entity = new HostEntity();
-        entity.setIp(k8sApiIP);
-        entity.setUser(k8sApiUser);
-        entity.setPassword(k8sApiPassword);
+        HostEntity entity = ssh.getOmHost();
 
-        ssh.setHostEntity(entity);
         //查询是否安装了glusterfs
-        String glusterfs = ssh.execute("kubectl get daemonset -n "+ domain.toLowerCase() + "|grep glusterfs|wc -l");
-        String heketi = ssh.execute("kubectl get deployment -n "+ domain.toLowerCase() +"|grep heketi|wc -l");
+        String glusterfs = ssh.execute("kubectl get daemonset -n "+ domain.toLowerCase() + "|grep glusterfs|wc -l",
+                entity);
+        String heketi = ssh.execute("kubectl get deployment -n "+ domain.toLowerCase() +"|grep heketi|wc -l",
+                entity);
 
         boolean isGlusterfs = false;
 
@@ -119,9 +107,12 @@ public class StorageServiceInterfaceImpl implements StorageServiceInterface {
         }
 
         //查询是否安装了ceph
-        String cephOsd = ssh.execute("kubectl get daemonset -n " + domain.toLowerCase() + "|grep ceph-osd|wc -l");
-        String cephMgr = ssh.execute("kubectl get deployment -n " + domain.toLowerCase() + "|grep ceph-mgr|wc -l");
-        String cephMon = ssh.execute("kubectl get daemonset -n " + domain.toLowerCase() + "|grep ceph-mon|wc -l");
+        String cephOsd = ssh.execute("kubectl get daemonset -n " + domain.toLowerCase() + "|grep ceph-osd|wc -l",
+                entity);
+        String cephMgr = ssh.execute("kubectl get deployment -n " + domain.toLowerCase() + "|grep ceph-mgr|wc -l",
+                entity);
+        String cephMon = ssh.execute("kubectl get daemonset -n " + domain.toLowerCase() + "|grep ceph-mon|wc -l",
+                entity);
 
         boolean isCeph =false;
 
@@ -129,7 +120,7 @@ public class StorageServiceInterfaceImpl implements StorageServiceInterface {
             isCeph = true;
         }
 
-        ResponseEntity response = new ResponseEntity();
+        ResultEntity response = new ResultEntity();
 
         if (isGlusterfs || isCeph) {
             response.setCode(200);
@@ -148,30 +139,32 @@ public class StorageServiceInterfaceImpl implements StorageServiceInterface {
      */
     private void initGfsSystem(List<HostEntity> entities, String domain) {
         //创建复制文件在目标主机中的存储路径
+
         String filePath = UUID.randomUUID().toString().replace("-","");
         String target = properties.getProperties("storage.host.file.store.path") + filePath + "/";
-        entities.parallelStream().forEachOrdered(x -> {ssh.setHostEntity(x); ssh.execute("mkdir -p " + target);});
+        entities.parallelStream().forEach(x -> {ssh.execute("mkdir -p " + target, x);});
 
-        //复制文件的存储路径
+        //复制文件在Java服务器上的存储路径
         String source = properties.getProperties("storage.host.file.send.gfs.path");
 
-        //开始复制文件
-//        ftp.FTPSendFile(entities, target, source, files);
-        entities.parallelStream().forEachOrdered(x -> {
-            ssh.setHostEntity(x);
-            ssh.copyFile(target,source,"gfs-image.tar.gz");
-        });
-        //开始解压文件
-        String cmd = "tar xvf " + target + "gfs-image.tar.gz -C " + target;
-        entities.parallelStream().forEachOrdered(x -> {ssh.setHostEntity(x); ssh.execute(cmd);});
-
-        //开始加载镜像
-        String[] images = {DeployStorageEnum.GFS_IMAFE_HEKETI.getName(), DeployStorageEnum.GFS_IMAGE_GLUSTERFS.getName(),
-        DeployStorageEnum.GFS_IMAGE_OBJECT.getName()};
-        for (String file : images) {
-            String loadCmd = "docker load -i " + target + "gfs-image/" + file;
-            entities.parallelStream().forEachOrdered(x -> {ssh.setHostEntity(x); ssh.execute(loadCmd.toString());});
+        //准备初始化GFS节点脚本
+        File file = new File(source + filePath);
+        if (!file.exists()){
+            file.mkdirs();
         }
+
+        String prepare = readFilesUtils.readFileToString(DeployStorageEnum.GFS_KUBE_PREPARE.getName(),filePath);
+
+        readFilesUtils.writeFile(prepare,source + filePath + "/" + DeployStorageEnum.GFS_KUBE_PREPARE.getName());
+
+        //开始复制文件,并执行初始化操作
+        entities.parallelStream().forEach(x -> {
+            ssh.copyFile(x,target,source,"gfs-image.tar.gz", "glusterfs-fuse.tar.gz", filePath + "/" +
+                    DeployStorageEnum.GFS_KUBE_PREPARE.getName());
+            ssh.execute("chmod +x " + target + "prepare-gfs.sh",x);
+            ssh.execute("/bin/bash " + target + "prepare-gfs.sh",x);
+            ssh.execute("rm -rf " + target,x);
+        });
 
         createDeployGfsFile(entities, domain);
     }
@@ -194,17 +187,16 @@ public class StorageServiceInterfaceImpl implements StorageServiceInterface {
         //需要拷贝的文件列表
         String[] files = {"ceph-images.tar.gz", "ceph-common.tar.gz", "prepare-node.sh"};
         //复制镜像文件,ceph-common安装文件到各个主机上,并初始化部署环境
-        entities.parallelStream().forEachOrdered(x -> {
-            ssh.setHostEntity(x);
+        entities.parallelStream().forEach(x -> {
             //在目标主机上创建文件夹
-            ssh.execute("mkdir -p " + storePath);
-            ssh.copyFile(storePath,properties.getProperties("storage.host.file.send.ceph.path"),files);
+            ssh.execute("mkdir -p " + storePath, x);
+            ssh.copyFile(x, storePath,properties.getProperties("storage.host.file.send.ceph.path"),files);
 
             //解压镜像文件,ceph-common文件，并进行节点初始化操作
             //执行脚本，初始化ceph部署节点
-            ssh.execute("chmod +x " + storePath + "prepare-node.sh");
-            ssh.execute("bash -c " + storePath + "prepare-node.sh ");
-            ssh.execute("rm -rf " + storePath);
+            ssh.execute("chmod +x " + storePath + "prepare-node.sh", x);
+            ssh.execute("bash -c " + storePath + "prepare-node.sh ", x);
+            ssh.execute("rm -rf " + storePath, x);
         });
 
         //复制部署ceph的源文件的路径
@@ -223,7 +215,7 @@ public class StorageServiceInterfaceImpl implements StorageServiceInterface {
 
         //修改values.yaml文件，并写入到目标文件夹下
         String values = readFilesUtils.readFileToString(DeployStorageEnum.CEPH_INSTALL_VALUES.getName(),
-                String.valueOf(k8sApiPort), k8sApiIP,domain.toLowerCase());
+                String.valueOf(ssh.getOmApiPort()), ssh.getOmIP(),domain.toLowerCase());
         readFilesUtils.writeFile(values,target + DeployStorageEnum.CEPH_INSTALL_VALUES.getName());
 
         //修改rbac文件，写入到文件中
@@ -249,10 +241,10 @@ public class StorageServiceInterfaceImpl implements StorageServiceInterface {
         StringBuffer label = new StringBuffer();
 
         for (String lab : entities.get(0).getDevices()) {
-            label.append("ceph-osd").append(lab.replace("/","-")).append("=enabled ");
+            label.append("ceph-osd-device").append(lab.replace("/","-")).append("=enabled ");
         }
 
-        label.append("ceph-mon=enabled ceph-mgr=enabled ceph-osd=enabled");
+        label.append("ceph-mon=enabled ceph-mgr=enabled ceph-osd=enabled ceph-app=" + domain.toLowerCase());
 
         //记录ceph-osd需要启动的数量
         int osd = entities.size() * entities.get(0).getDevices().length;
@@ -269,24 +261,20 @@ public class StorageServiceInterfaceImpl implements StorageServiceInterface {
         tarFileUtils.tarFiles(target + "ceph", target, "ceph-helm.tar",true);
 
         //将文件复制到k8s的om节点中
-        HostEntity entity = new HostEntity();
-        entity.setPassword(k8sApiPassword);
-        entity.setUser(k8sApiUser);
-        entity.setIp(k8sApiIP);
+        HostEntity entity = ssh.getOmHost();
 
-        ssh.setHostEntity(entity);
-        ssh.execute("mkdir -p /tmp/" + uuid);
-        ssh.copyFile("/tmp/" + uuid + "/", target, "ceph-helm.tar");
+        ssh.execute("mkdir -p /tmp/" + uuid, entity);
+        ssh.copyFile(entity,"/tmp/" + uuid + "/", target, "ceph-helm.tar");
 
         //解压缩ceph部署文件
-        ssh.execute("tar xvf /tmp/" + uuid + "/ceph-helm.tar -C /tmp/" + uuid);
+        ssh.execute("tar xvf /tmp/" + uuid + "/ceph-helm.tar -C /tmp/" + uuid, entity);
 
         //为install-ceph.sh增加执行权限
-        ssh.execute("chmod +x /tmp/" + uuid + "/install-ceph.sh");
+        ssh.execute("chmod +x /tmp/" + uuid + "/install-ceph.sh", entity);
 
         //执行install-ceph.sh部署脚本
         //安装完成以后删除文件
-        ssh.execute("bash -c /tmp/" + uuid + "/install-ceph.sh");
+        ssh.execute("bash -c /tmp/" + uuid + "/install-ceph.sh", entity);
 
         file.delete();
     }
@@ -298,68 +286,56 @@ public class StorageServiceInterfaceImpl implements StorageServiceInterface {
      */
     private void createDeployGfsFile(List<HostEntity> entities, String domain) {
 
+        //需要拷贝的文件的列表
         String[] files = {DeployStorageEnum.GFS_KUBE_DAEMON.getName(),DeployStorageEnum.GFS_KUBE_DEPLOY.getName(),
                 DeployStorageEnum.GFS_KUBE_DEPLOYMENT.getName(),DeployStorageEnum.GFS_KUBE_HEKETI.getName(),
                 DeployStorageEnum.GFS_KUBE_HEKETI_JSON.getName(),DeployStorageEnum.GFS_KUBE_PVC.getName(),
                 DeployStorageEnum.GFS_KUBE_S3.getName(),DeployStorageEnum.GFS_KUBE_STORAGE.getName(),
-                DeployStorageEnum.GFS_KUBE_INIT.getName()};
+                DeployStorageEnum.GFS_KUBE_INIT.getName(),DeployStorageEnum.GFS_KUBE_SHELL.getName(),
+                DeployStorageEnum.GFS_KUBE_TOPOLOGY.getName()};
+        //用于临时存储文件的目录
         String uuid = UUID.randomUUID().toString().replace("-","");
-        String storePath = properties.getProperties("storage.deploy.file.gfs.store.path","",uuid) + "glusterfs/";
 
-        String[] parames = {domain.toLowerCase(),String.valueOf(k8sApiPort),k8sApiIP};
+        String storePath = properties.getProperties("storage.deploy.file.gfs.store.path",uuid) + "glusterfs/";
 
-        //读取并配置yaml文件
+        String[] parames = {domain.toLowerCase(),String.valueOf(ssh.getOmApiPort()),ssh.getOmIP()};
+        StringBuffer nodes = new StringBuffer();
+        entities.parallelStream().forEachOrdered(x -> {
+            nodes.append(x.getName()).append(" ");
+        });
+        //读取并配置部署文件
         for (String file : files) {
             String info = "";
             if (file.equals(DeployStorageEnum.GFS_KUBE_INIT.getName())) {
-                info = readFilesUtils.readFileToString(file,uuid,domain.toLowerCase());
+                info = readFilesUtils.readFileToString(file,"/tmp/" + uuid,nodes.toString(), domain.toLowerCase(),
+                        domain.toLowerCase());
+            }else if (file.equals(DeployStorageEnum.GFS_KUBE_SHELL.getName())){
+                info = readFilesUtils.readFileToString(file);
+            }else if (file.equals(DeployStorageEnum.GFS_KUBE_TOPOLOGY.getName())){
+                String json = readFilesUtils.readFileToString(DeployStorageEnum.GFS_KUBE_TOPOLOGY.getName());
+                JSONObject jsonObject = readFilesUtils.addHostEntity(json,entities);
+                info = JSONObject.toJSONString(jsonObject,true);
             }else {
                 info = readFilesUtils.readFileToString(file, parames);
             }
             readFilesUtils.writeFile(info, storePath + file);
         }
 
-        //读取并设置安装脚本
-        String installShell = readFilesUtils.readFileToString(DeployStorageEnum.GFS_KUBE_SHELL.getName());
-        readFilesUtils.writeFile(installShell,storePath + DeployStorageEnum.GFS_KUBE_SHELL.getName());
-
-        //读取并配置json文件
-        String json = readFilesUtils.readFileToString(DeployStorageEnum.GFS_KUBE_TOPOLOGY.getName());
-        JSONObject jsonObject = readFilesUtils.addHostEntity(json,entities);
-        readFilesUtils.writeFile(JSONObject.toJSONString(jsonObject, true),
-                storePath + DeployStorageEnum.GFS_KUBE_TOPOLOGY.getName());
-
-        tarFileUtils.tarFiles(storePath,properties.getProperties("storage.deploy.file.gfs.store.path","",uuid),
+        tarFileUtils.tarFiles(storePath,properties.getProperties("storage.deploy.file.gfs.store.path",uuid),
                 properties.getProperties("storage.deploy.file.gfs.tar.name"), true);
 
-        HostEntity entity = new HostEntity();
-        entity.setIp(k8sApiIP);
-        entity.setPassword(k8sApiPassword);
-        entity.setUser(k8sApiUser);
-//        entity.setPort(k8sApiPort);
+        HostEntity entity = ssh.getOmHost();
 
-        List<HostEntity> list = new ArrayList<HostEntity>();
-        list.add(entity);
-
-        List<String> tars = new ArrayList<String>();
-        tars.add(properties.getProperties("storage.deploy.file.gfs.tar.name"));
-
-        ssh.setHostEntity(entity);
-        ssh.execute("mkdir -p /tmp/" + uuid);
-        ssh.copyFile("/tmp/" + uuid + "/",properties.getProperties("storage.deploy.file.gfs.store.path", "",
-                uuid), properties.getProperties("storage.deploy.file.gfs.tar.name"));
+        ssh.execute("mkdir -p /tmp/" + uuid,entity);
+        ssh.copyFile(entity, "/tmp/" + uuid + "/",properties.getProperties("storage.deploy.file.gfs.store.path",
+                 uuid), properties.getProperties("storage.deploy.file.gfs.tar.name"));
 
         ssh.execute("tar xvf /tmp/" + uuid + "/" + properties.getProperties("storage.deploy.file.gfs.tar.name")
-                + " -C /tmp/" + uuid + "/");
-        entities.parallelStream().forEachOrdered(x -> {
-            ssh.execute("kubectl label node " + x.getName() + " apollo-domain=" + domain.toLowerCase());
-        });
-        ssh.execute("kubectl create namespace " + domain.toLowerCase());
-        ssh.execute("chmod +x /tmp/" + uuid + "/" + DeployStorageEnum.GFS_KUBE_SHELL.getName());
-        ssh.execute("chmod +x /tmp/" + uuid + "/" + DeployStorageEnum.GFS_KUBE_INIT.getName());
-        String installCmd = "/tmp/" + uuid + "/" + DeployStorageEnum.GFS_KUBE_SHELL.getName() + " -n " +
-                domain.toLowerCase() + " -g";
-        ssh.execute(installCmd);
+                + " -C /tmp/" + uuid + "/",entity);
+        ssh.execute("chmod +x /tmp/" + uuid + "/" + DeployStorageEnum.GFS_KUBE_INIT.getName(),entity);
+        ssh.execute("/tmp/" + uuid + "/" + DeployStorageEnum.GFS_KUBE_INIT.getName() + " >> /var/log/" +
+                "install-glusterfs-" + String.valueOf(new Date().getTime()) + ".log",entity);
+        ssh.execute("rm -rf /tmp/" + uuid, entity);
         return;
     }
 }

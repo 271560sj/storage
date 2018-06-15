@@ -1,8 +1,7 @@
 package io.xlauncher.storage.controller;
 
 import io.xlauncher.storage.entity.HostEntity;
-import io.xlauncher.storage.entity.ResponseEntity;
-import io.xlauncher.storage.entity.VolumeEntity;
+import io.xlauncher.storage.entity.ResultEntity;
 import io.xlauncher.storage.service.StorageServiceInterface;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -14,24 +13,10 @@ import java.util.List;
  * @Date 18-6-4 下午7:49
  */
 @RestController
-//@RequestMapping(value = "/")
 public class StorageController {
 
     @Autowired
     private StorageServiceInterface storageService;
-
-    /**
-     * 获取存储卷列表
-     * @param user
-     * @param domain
-     * @return
-     */
-    @RequestMapping(value = "/volumes", method = RequestMethod.GET)
-    @ResponseBody
-    public List<VolumeEntity> getStorageVolumes(String user, String domain) throws Exception{
-        List<VolumeEntity> volumes = storageService.getVolumes(user,domain);
-        return volumes;
-    }
 
     /**
      * 初始化存储集群
@@ -59,9 +44,9 @@ public class StorageController {
      */
     @RequestMapping(value = "/check/{domain}")
     @ResponseBody
-    public ResponseEntity checkStorageSystem(@PathVariable(value = "domain") String domain) throws Exception{
+    public ResultEntity checkStorageSystem(@PathVariable(value = "domain") String domain) throws Exception{
         //检查存储服务是否已经部署
-        ResponseEntity entity = storageService.checkInitStorage(domain);
+        ResultEntity entity = storageService.checkInitStorage(domain);
         return entity;
     }
 }

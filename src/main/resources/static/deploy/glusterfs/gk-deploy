@@ -562,12 +562,12 @@ In addition, for an OpenShift deployment you must:
 Do you wish to proceed with deployment?
 "
 
-  read -rp "[Y]es, [N]o? [Default: Y]: " ynopt
-  case $ynopt in
-    N*|n*)
-    exit
-    ;;
-  esac
+#  read -rp "[Y]es, [N]o? [Default: Y]: " ynopt
+#  case $ynopt in
+#    N*|n*)
+#    exit
+#    ;;
+#  esac
 fi
 
 if [[ ! -f ${TOPOLOGY} ]]; then

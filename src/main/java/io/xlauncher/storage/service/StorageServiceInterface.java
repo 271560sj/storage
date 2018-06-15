@@ -1,7 +1,7 @@
 package io.xlauncher.storage.service;
 
 import io.xlauncher.storage.entity.HostEntity;
-import io.xlauncher.storage.entity.ResponseEntity;
+import io.xlauncher.storage.entity.ResultEntity;
 import io.xlauncher.storage.entity.VolumeEntity;
 
 import java.util.List;
@@ -36,5 +36,5 @@ public interface StorageServiceInterface {
      * @return
      * @throws Exception
      */
-    ResponseEntity checkInitStorage(String domain) throws Exception;
+    ResultEntity checkInitStorage(String domain) throws Exception;
 }
